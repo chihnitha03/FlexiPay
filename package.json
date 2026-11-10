@@ -1,0 +1,30 @@
+{
+  "name": "flexprice-ai",
+  "version": "1.0.0",
+  "description": "FlexPrice AI — AI-powered pricing advisor and adaptive billing framework with PayPal integration",
+  "type": "module",
+  "main": "framework/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node demo/server.js",
+    "dev": "node --watch demo/server.js",
+    "start:framework": "node framework/server.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:e2e": "node test/e2e/browser.e2e.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0"
+  },
+  "exports": {
+    ".": "./framework/index.js",
+    "./sdk": "./framework/sdk/index.js",
+    "./engine": "./framework/engine.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  }
+}

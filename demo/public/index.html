@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" href="/favicon.svg"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlexPrice AI — AI pricing advisor & adaptive billing on PayPal</title>
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+.hero{background:linear-gradient(135deg,#0b1b3f,#163a8a);color:#fff;padding:56px 0 64px}
+.hero h1{font-size:40px;line-height:1.15;margin:0 0 14px;letter-spacing:-.5px}
+.hero p{font-size:18px;color:#c7d7fe;max-width:720px}
+.arch-wrap{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;overflow-x:auto}
+svg.arch{display:block;width:100%;min-width:760px;height:auto;font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+.arch .zone{fill:#f8fafc;stroke:#e4e7ec}
+.arch .zone.fp{fill:#eef4ff;stroke:#c7d7fe}
+.arch .zone-t{font-size:12px;font-weight:700;letter-spacing:.08em;fill:#667085;text-anchor:middle}
+.arch .box{fill:#fff;stroke:#d0d5dd;stroke-width:1.2}
+.arch .box.ai{fill:#f9f5ff;stroke:#d6bbfb}
+.arch .box.pp{fill:#fffaeb;stroke:#fec84b}
+.arch .box.pol{fill:#ecfdf3;stroke:#abefc6}
+.arch .group.det{fill:#fff;fill-opacity:.55;stroke:#98a2b3;stroke-dasharray:4 4}
+.arch .g{font-size:10px;font-weight:700;letter-spacing:.08em;fill:#667085}
+.arch .t{font-size:15px;font-weight:700;fill:#101828;text-anchor:middle}
+.arch .t2{font-size:13px;font-weight:700;fill:#101828;text-anchor:middle}
+.arch .s{font-size:11.5px;fill:#475467;text-anchor:middle;font-weight:400}
+.arch .s2{font-size:12px;fill:#067647;text-anchor:middle;font-weight:600}
+.arch .mono{font-family:ui-monospace,Menlo,monospace;fill:#3538cd}
+.arch .ar{stroke:#475467;stroke-width:1.6}
+.arch .l{font-size:11px;fill:#344054;text-anchor:middle;font-weight:600}
+ol.flow{margin:16px 0 0;padding-left:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:8px 28px;font-size:14px;color:#344054}
+ol.flow li{padding-left:4px}
+.status span{margin-right:8px}
+section{padding:34px 0}
+h2{margin:0 0 14px}
+.merchant h3{margin:6px 0}
+</style></head><body>
+<header class="top"><div class="container"><div class="logo">FlexPrice <span>AI</span></div>
+<nav><a href="/demo/site.html?m=streamflix">StreamFlix demo</a><a href="/demo/site.html?m=codecloud">CodeCloud demo</a><a href="/demo/site.html?m=learnhub">LearnHub demo</a><a href="/dashboard/">Merchant dashboard</a></nav></div></header>
+
+<div class="hero"><div class="container">
+  <div class="status" id="status"></div>
+  <h1>Let customers pay the way they actually use your product.</h1>
+  <p>FlexPrice AI is a plug-and-play pricing advisor and adaptive billing framework. It forecasts each customer's usage, compares monthly, annual, usage-based and hybrid plans over the same horizon, explains the trade-offs with Claude, and collects payment through PayPal. Your existing backend stays the source of truth.</p>
+  <div style="margin-top:22px"><a class="btn" href="/demo/site.html?m=streamflix">Try the StreamFlix demo →</a> <a class="btn ghost" href="/dashboard/">Open merchant dashboard</a></div>
+</div></div>
+
+<section><div class="container">
+  <h2>Three merchants, three integration styles, one framework</h2>
+  <div class="grid3">
+    <div class="card merchant"><span class="pill">HTTP adapter</span><h3>StreamFlix · streaming</h3><p class="muted small">A separate merchant backend with its own data model exposes the FlexPrice adapter contract over REST. It covers watch-hour metering, pause, retention offers and live usage events.</p><a href="/demo/site.html?m=streamflix">Open demo →</a></div>
+    <div class="card merchant"><span class="pill">SDK adapter</span><h3>CodeCloud · developer API</h3><p class="muted small">An in-process JavaScript adapter with graduated tiered pricing on thousands of API calls. It declares no pause capability, so FlexPrice never offers pausing.</p><a href="/demo/site.html?m=codecloud">Open demo →</a></div>
+    <div class="card merchant"><span class="pill">Zero-code catalog</span><h3>LearnHub · online learning</h3><p class="muted small">This merchant supplies only a plan catalog and a checkout URL. Its pay-per-lesson plan is hidden automatically because the integration has no metering.</p><a href="/demo/site.html?m=learnhub">Open demo →</a></div>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="container">
+  <h2>How it works</h2>
+<div class="arch-wrap">
+<svg class="arch" viewBox="0 0 1140 600" role="img" aria-labelledby="arch-title arch-desc" xmlns="http://www.w3.org/2000/svg">
+  <title id="arch-title">FlexPrice AI architecture</title>
+  <desc id="arch-desc">The merchant website embeds the FlexPrice widget and the merchant backend stays the source of truth. FlexPrice computes prices deterministically, uses Claude only to explain, and runs payments through PayPal.</desc>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475467"/></marker>
+  </defs>
+
+  <!-- zones -->
+  <rect x="20" y="20" width="250" height="560" rx="16" class="zone"/>
+  <text x="145" y="48" class="zone-t">MERCHANT</text>
+  <rect x="320" y="20" width="510" height="560" rx="16" class="zone fp"/>
+  <text x="575" y="48" class="zone-t">FLEXPRICE FRAMEWORK</text>
+  <rect x="880" y="20" width="240" height="560" rx="16" class="zone"/>
+  <text x="1000" y="48" class="zone-t">EXTERNAL SERVICES</text>
+
+  <!-- merchant -->
+  <rect x="40" y="70" width="210" height="110" rx="10" class="box"/>
+  <text x="145" y="100" class="t">Merchant website</text>
+  <text x="145" y="124" class="s mono">&lt;flexprice-advisor&gt;</text>
+  <text x="145" y="144" class="s">embedded widget:</text>
+  <text x="145" y="161" class="s">plans, chat, PayPal checkout</text>
+
+  <rect x="40" y="420" width="210" height="120" rx="10" class="box"/>
+  <text x="145" y="450" class="t">Merchant backend</text>
+  <text x="145" y="474" class="s">source of truth:</text>
+  <text x="145" y="491" class="s">customers, plans, usage,</text>
+  <text x="145" y="508" class="s">subscriptions, entitlements</text>
+
+  <!-- flexprice: API -->
+  <rect x="340" y="70" width="470" height="50" rx="10" class="box"/>
+  <text x="575" y="100" class="t">Widget API <tspan class="s">· signed customer session · CORS</tspan></text>
+
+  <!-- decision core -->
+  <rect x="340" y="140" width="470" height="135" rx="10" class="group det"/>
+  <text x="352" y="160" class="g">DETERMINISTIC DECISION CORE</text>
+  <rect x="352" y="172" width="135" height="50" rx="8" class="box"/>
+  <text x="419" y="194" class="t2">Forecaster</text><text x="419" y="211" class="s">trend + seasonality</text>
+  <rect x="507" y="172" width="135" height="50" rx="8" class="box"/>
+  <text x="574" y="194" class="t2">Pricing engine</text><text x="574" y="211" class="s">integer-cent math</text>
+  <rect x="662" y="172" width="135" height="50" rx="8" class="box"/>
+  <text x="729" y="194" class="t2">Recommender</text><text x="729" y="211" class="s">risk-adjusted fit</text>
+  <line x1="487" y1="197" x2="505" y2="197" class="ar" marker-end="url(#ah)"/>
+  <line x1="642" y1="197" x2="660" y2="197" class="ar" marker-end="url(#ah)"/>
+  <rect x="352" y="232" width="445" height="32" rx="8" class="box pol"/>
+  <text x="575" y="253" class="s2">Policy engine · eligibility · spending caps · consent · fair retention offers</text>
+
+  <!-- AI -->
+  <rect x="340" y="295" width="470" height="70" rx="10" class="box ai"/>
+  <text x="575" y="321" class="t">AI layer <tspan class="s">· customer advisor · merchant pricing copilot</tspan></text>
+  <text x="575" y="344" class="s">read-only tools · every $ and % checked against the engine · PII redacted</text>
+
+  <!-- billing -->
+  <rect x="340" y="385" width="470" height="75" rx="10" class="box pp"/>
+  <text x="575" y="410" class="t">Billing</text>
+  <text x="575" y="431" class="s">consent → PayPal checkout / saved account → server-side verify → plan change</text>
+  <text x="575" y="449" class="s">usage ledger · invoices · webhooks · refunds · reconciliation</text>
+
+  <!-- gateway + merchant api -->
+  <rect x="340" y="480" width="225" height="60" rx="10" class="box"/>
+  <text x="452" y="506" class="t2">Adapter gateway</text><text x="452" y="525" class="s">capabilities · validation</text>
+  <rect x="585" y="480" width="225" height="60" rx="10" class="box"/>
+  <text x="697" y="506" class="t2">Merchant API</text><text x="697" y="525" class="s">usage · billing runs · insights</text>
+
+  <!-- internal flow -->
+  <line x1="575" y1="120" x2="575" y2="138" class="ar" marker-end="url(#ah)"/>
+  <line x1="575" y1="275" x2="575" y2="293" class="ar" marker-end="url(#ah)"/>
+  <line x1="575" y1="365" x2="575" y2="383" class="ar" marker-end="url(#ah)"/>
+
+  <!-- external -->
+  <rect x="900" y="290" width="200" height="80" rx="10" class="box ai"/>
+  <text x="1000" y="318" class="t">Claude</text>
+  <text x="1000" y="338" class="s">Anthropic Messages API</text>
+  <text x="1000" y="355" class="s">explain · chat · propose</text>
+  <rect x="900" y="380" width="200" height="90" rx="10" class="box pp"/>
+  <text x="1000" y="406" class="t">PayPal</text>
+  <text x="1000" y="426" class="s">Orders v2 · Vault v3</text>
+  <text x="1000" y="443" class="s">Webhooks · Refunds</text>
+  <text x="1000" y="460" class="s">Subscriptions catalog</text>
+
+  <!-- widget <-> widget api -->
+  <line x1="250" y1="86" x2="338" y2="86" class="ar" marker-end="url(#ah)"/>
+  <text x="294" y="80" class="l">session</text>
+  <line x1="338" y1="108" x2="252" y2="108" class="ar" marker-end="url(#ah)"/>
+  <text x="294" y="124" class="l">prices · advice</text>
+
+  <!-- backend <-> gateway -->
+  <line x1="252" y1="500" x2="338" y2="500" class="ar" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text x="294" y="493" class="l">adapter</text>
+  <text x="294" y="515" class="l">contract</text>
+  <!-- backend -> merchant api (usage events) -->
+  <path d="M145,540 V565 H697 V542" class="ar" fill="none" marker-end="url(#ah)"/>
+  <text x="420" y="560" class="l">usage events (server-to-server, deduplicated)</text>
+
+  <!-- ai <-> claude -->
+  <line x1="810" y1="316" x2="898" y2="316" class="ar" marker-end="url(#ah)"/>
+  <text x="854" y="310" class="l">facts</text>
+  <line x1="898" y1="344" x2="812" y2="344" class="ar" marker-end="url(#ah)"/>
+  <text x="854" y="360" class="l">text · ideas</text>
+
+  <!-- billing <-> paypal -->
+  <line x1="810" y1="405" x2="898" y2="405" class="ar" marker-end="url(#ah)"/>
+  <text x="854" y="399" class="l">charges</text>
+  <line x1="898" y1="440" x2="812" y2="440" class="ar" marker-end="url(#ah)"/>
+  <text x="854" y="456" class="l">webhooks</text>
+</svg>
+</div>
+<ol class="flow">
+  <li><b>Sign in.</b> The merchant backend signs a short-lived session for the logged-in customer, and the page embeds the widget.</li>
+  <li><b>Gather.</b> FlexPrice reads plans and usage history through the adapter. The merchant's data never moves.</li>
+  <li><b>Decide.</b> The forecaster, pricing engine and recommender compare every eligible plan over 12 months, and the policy engine applies the merchant's rules.</li>
+  <li><b>Explain.</b> Claude explains the result or answers questions using read-only tools. Any number not produced by the engine is rejected.</li>
+  <li><b>Pay.</b> The customer accepts the exact terms and pays with PayPal, or saves PayPal for usage billing. The server verifies the payment, asks the merchant to change the plan, then reads it back.</li>
+  <li><b>Bill usage.</b> The merchant streams usage events. At month end FlexPrice rates usage within the cap, notifies the customer, and charges the saved PayPal account.</li>
+</ol>
+  <div class="grid3" style="margin-top:16px">
+    <div class="card"><b>Deterministic money, AI words.</b><p class="muted small">Every price comes from the pricing engine and is computed in integer cents. Claude only explains results and calls read-only tools. A grounding check rejects any reply containing a dollar amount the engine didn't produce.</p></div>
+    <div class="card"><b>Payment you can trust.</b><p class="muted small">Amounts are computed on the server and consent is bound to the exact terms. PayPal orders are captured and verified on the server, plan changes are idempotent, webhooks are verified and deduplicated, and reconciliation handles partial failures.</p></div>
+    <div class="card"><b>Fair retention.</b><p class="muted small">When a customer moves to cancel, FlexPrice shows cheaper plans that fit their usage first. Discounts depend on merchant policy, with tenure, cooldown and lifetime limits, so clicking cancel never triggers one automatically.</p></div>
+  </div>
+</div></section>
+<script>
+fetch('/api/v1/health').then(r=>r.json()).then(h=>{
+  document.getElementById('status').innerHTML=
+   `<span class="pill ${h.paypal_mode==='simulator'?'amber':'green'}">PayPal: ${h.paypal_mode}</span>`+
+   `<span class="pill ${h.ai_enabled?'green':'amber'}">AI: ${h.ai_enabled?'Claude · '+h.ai_model:'deterministic fallback'}</span>`;
+});
+</script>
+</body></html>

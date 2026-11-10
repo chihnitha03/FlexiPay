@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" href="/favicon.svg"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Merchant dashboard — FlexPrice AI</title>
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+main{padding:22px 0 60px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.kpi .v{font-size:24px;font-weight:700}.kpi .l{font-size:12px;color:var(--muted)}
+.kpi.neg .v{color:#b42318}.kpi.pos .v{color:#067647}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-top:16px}
+.cols>*{min-width:0}
+td{overflow-wrap:anywhere}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+h3{margin:0 0 10px;font-size:15px}
+.ok{color:#067647}.bad{color:#b42318}
+pre{background:#0b1b3f;color:#c7d7fe;border-radius:8px;padding:10px;font-size:11px;overflow:auto;max-height:260px}
+.scroll{max-height:320px;overflow:auto}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:12px}
+.legend i{width:12px;height:3px;display:inline-block;border-radius:2px}
+.prop{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px}
+.prop h4{margin:0 0 4px;font-size:14px}
+.chg{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#f2f4f7;border-radius:6px;padding:6px 8px;margin-top:6px}
+.metrics{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-top:6px}
+.metrics b{font-size:15px}
+#signin{max-width:520px;margin:40px auto}
+</style></head><body>
+<header class="top"><div class="container"><div class="logo">FlexPrice <span>AI</span> · Merchant dashboard</div>
+<nav id="nav"></nav></div></header>
+<main><div class="container">
+  <div id="signin" class="card" hidden>
+    <h3>Sign in with your FlexPrice merchant API key</h3>
+    <p class="small muted">The key identifies your merchant account (tenant). It is kept in this browser tab only.</p>
+    <div class="toolbar"><input id="keyin" placeholder="merchant API key" style="flex:1"><button class="btn sm" id="go">Open dashboard</button></div>
+    <div id="demopick" class="small muted" style="margin-top:12px"></div>
+  </div>
+
+  <div id="app" hidden>
+  <div class="toolbar">
+    <b id="mname"></b> <span class="small muted" id="minteg"></span>
+    <button class="btn ghost sm" id="switch">Switch merchant</button>
+    <span style="flex:1"></span>
+    <button class="btn ghost sm" id="validate">Run adapter validation</button>
+    <button class="btn ghost sm" id="billing">Run usage billing</button>
+    <button class="btn ghost sm" id="reconcile">Run reconciliation</button>
+    <button class="btn ghost sm" id="sync">Sync fixed plans → PayPal Subscriptions</button>
+  </div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card" style="margin-top:4px">
+    <div class="toolbar"><h3 style="margin:0">✦ Pricing Insights</h3><span class="small muted" id="ins-src"></span><span style="flex:1"></span>
+      <select id="goal"><option value="balanced">Goal: balanced</option><option value="retention">Goal: reduce churn</option><option value="revenue">Goal: protect revenue</option></select>
+      <label class="small muted">New customers from flexible plans <input id="newpct" type="number" min="0" max="100" step="1" value="0" style="width:64px">%</label>
+      <button class="btn sm" id="gen">Generate insights</button></div>
+    <div id="insights" class="small muted" style="margin-top:8px">Simulates how best-fit recommendations affect your revenue, churn and customer spend, then proposes catalog experiments. Nothing is applied automatically.</div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Plan cost vs. monthly usage (break-even analysis)</h3><div id="chart"></div><div class="legend" id="legend"></div><div class="small muted" id="be"></div></div>
+    <div class="card"><h3>Integration health</h3><div id="health"></div><div id="validation" style="margin-top:10px"></div></div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Checkouts & payments</h3><div class="scroll"><table id="checkouts"></table></div></div>
+    <div class="card"><h3>Action result</h3><pre id="out">Use the toolbar actions above.</pre><h3 style="margin-top:12px">Policy</h3><pre id="policy"></pre></div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Audit log</h3><div class="scroll"><table id="audit"></table></div></div>
+    <div class="card"><h3>Invoices (usage & renewals)</h3><div class="scroll"><table id="invoices"></table></div></div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Merchant webhooks <span class="small muted">(signed events sent to your backend)</span> <button class="btn ghost sm" id="ping" style="float:right">Send test event</button></h3><div class="scroll"><table id="events"></table></div></div>
+    <div class="card"><h3>Subscriptions billed by FlexPrice</h3><div class="scroll"><table id="subs"></table></div></div>
+  </div>
+  </div>
+</div></main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const money = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
+const signed = (n) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`;
+const pct = (n) => (n == null ? '—' : `${Math.round(n * 100)}%`);
+const COLORS = ['#0070e0', '#e50914', '#12b76a', '#f79009', '#7a5af8', '#06aed4', '#dd2590'];
+
+let key = sessionStorage.getItem('fp_key') || '';
+let timer;
+const api = async (method, path, body) => {
+  const r = await fetch(`/api/v1/merchant${path}`, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok && r.status !== 207) throw Object.assign(new Error(j.error || r.statusText), { status: r.status });
+  return j;
+};
+
+// Demo mode (only present when running demo/server.js): quick-pick of demo merchant keys.
+const demo = await fetch('/api/v1/demo/merchants').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+$('nav').innerHTML = demo ? '<a href="/">Demo home</a><a href="/demo/site.html?m=streamflix">StreamFlix</a><a href="/demo/site.html?m=codecloud">CodeCloud</a><a href="/demo/site.html?m=learnhub">LearnHub</a>' : '';
+if (demo) $('demopick').innerHTML = 'Demo mode — use a demo merchant: ' + demo.map((m) => `<button class="btn ghost sm" data-k="${esc(m.admin_api_key)}">${esc(m.name)}</button>`).join(' ');
+document.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => signIn(b.dataset.k)));
+$('go').onclick = () => signIn($('keyin').value.trim());
+$('switch').onclick = () => { sessionStorage.removeItem('fp_key'); key = ''; clearInterval(timer); show(); };
+
+async function signIn(k) {
+  key = k;
+  try { await api('GET', '/overview'); } catch { alert('Invalid API key'); return; }
+  sessionStorage.setItem('fp_key', key);
+  show();
+}
+
+function show() {
+  $('signin').hidden = Boolean(key);
+  $('app').hidden = !key;
+  if (!key) return;
+  $('insights').innerHTML = 'Simulates how best-fit recommendations affect your revenue, churn and customer spend, then proposes catalog experiments. Nothing is applied automatically.';
+  load(); validate(); loadInsights();
+  clearInterval(timer);
+  timer = setInterval(load, 5000);
+}
+
+function chart(c) {
+  const W = 560, H = 240, L = 44, B = 26, T = 10, R = 10;
+  const maxY = Math.max(...c.series.flatMap((s) => s.y)) * 1.08;
+  const maxX = c.x.at(-1);
+  const sx = (x) => L + (x / maxX) * (W - L - R);
+  const sy = (y) => T + (1 - y / maxY) * (H - T - B);
+  const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${L}" x2="${W - R}" y1="${sy(f * maxY)}" y2="${sy(f * maxY)}" stroke="#eef1f5"/><text x="${L - 6}" y="${sy(f * maxY) + 3}" font-size="10" text-anchor="end" fill="#667085">$${Math.round(f * maxY)}</text>`).join('');
+  const xt = [0, 0.25, 0.5, 0.75, 1].map((f) => `<text x="${sx(f * maxX)}" y="${H - 8}" font-size="10" text-anchor="middle" fill="#667085">${Math.round(f * maxX)}</text>`).join('');
+  const lines = c.series.map((s, i) => `<polyline fill="none" stroke="${COLORS[i % COLORS.length]}" stroke-width="2.2" points="${s.y.map((y, j) => `${sx(c.x[j])},${sy(y)}`).join(' ')}"/>`).join('');
+  $('chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${xt}${lines}<text x="${W - R}" y="${H - 8 - 12}" font-size="10" text-anchor="end" fill="#667085">${esc(c.unit)} / month →</text></svg>`;
+  $('legend').innerHTML = c.series.map((s, i) => `<span><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(s.name)}</span>`).join('');
+  const name = (id) => c.series.find((s) => s.plan_id === id)?.name ?? id;
+  $('be').textContent = c.break_even.length ? 'Break-even points: ' + c.break_even.map((b) => `${name(b.a)} = ${name(b.b)} at ${b.usage} ${c.unit}`).join(' · ') : '';
+}
+
+async function load() {
+  const [ov, curves, checkouts, audit, invoices, events, subs] = await Promise.all([api('GET', '/overview'), api('GET', '/cost-curves'), api('GET', '/checkouts'), api('GET', '/audit'), api('GET', '/invoices'), api('GET', '/events'), api('GET', '/subscriptions')]);
+  $('events').innerHTML = `<tr><th>When</th><th>Event</th><th>Customer</th><th>Delivery</th><th></th></tr>` + (events.slice(0, 60).map((e) => `<tr><td>${new Date(e.created_at).toLocaleTimeString()}</td><td><code>${esc(e.type)}</code></td><td>${esc(e.data.customer_reference ?? '—')}</td><td class="${e.status === 'delivered' ? 'ok' : e.status === 'failed' ? 'bad' : 'muted'}">${esc(e.status.replace('_', ' '))}${e.attempts ? ` · ${e.attempts} attempt(s)` : ''}${e.deliveries?.at(-1)?.status ? ` · HTTP ${e.deliveries.at(-1).status}` : ''}</td><td>${e.status !== 'no_endpoint' ? `<button class="btn ghost sm" data-redeliver="${e.id}">Redeliver</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No events yet.</td></tr>');
+  document.querySelectorAll('[data-redeliver]').forEach((b) => (b.onclick = async () => { $('out').textContent = JSON.stringify(await api('POST', `/events/${b.dataset.redeliver}/redeliver`), null, 2); load(); }));
+  $('subs').innerHTML = `<tr><th>Customer</th><th>Plan</th><th>Status</th><th>Current period</th><th>Renewal</th></tr>` + (subs.filter((s) => s.status !== 'replaced').map((s) => `<tr><td>${esc(s.customer_reference)}</td><td>${esc(s.plan_id)}</td><td class="${s.status === 'active' ? 'ok' : s.status === 'past_due' ? 'bad' : ''}">${esc(s.status)}</td><td class="small">${new Date(s.current_period_start).toLocaleDateString()} → ${new Date(s.current_period_end).toLocaleDateString()}</td><td>${s.billing_model === 'fixed' ? (s.auto_renew ? money(s.renewal_cents / 100) : 'off') : 'usage, monthly'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No FlexPrice-billed subscriptions yet.</td></tr>');
+  $('mname').textContent = ov.merchant.name;
+  $('minteg').innerHTML = `<code>${esc(ov.merchant.integration)}</code> · payments: ${esc(ov.paypal_mode)}`;
+  const k = ov.metrics;
+  const kpis = [
+    ['Recommendations shown', k.recommendations_shown],
+    ['Plans selected', k.plans_selected],
+    ['Followed recommendation', pct(k.followed_recommendation_rate)],
+    ['Est. customer savings / yr', money(k.estimated_customer_savings)],
+    ['PayPal revenue captured', money(k.revenue_captured)],
+    ['Auto-collected usage payments', k.auto_collected_payments],
+    ['Revenue shifted by plan switches (12-mo est.)', signed(k.revenue_shifted_by_switches_12m), k.revenue_shifted_by_switches_12m < 0 ? 'neg' : ''],
+    ['Revenue retained by saves (12-mo est.)', signed(k.revenue_retained_by_saves_12m), 'pos'],
+    ['Net revenue impact (12-mo est.)', signed(k.net_revenue_impact_12m), k.net_revenue_impact_12m < 0 ? 'neg' : 'pos'],
+    ['Retention saves / cancel intents', `${k.retention_saves} / ${k.cancel_intents}`],
+    ['Cancellations', k.cancellations],
+    ['AI chats', `${k.ai_chats}${Object.keys(k.ai_chats_by_source).length ? ' (' + Object.entries(k.ai_chats_by_source).map(([s, n]) => `${s}: ${n}`).join(', ') + ')' : ''}`],
+  ];
+  $('kpis').innerHTML = kpis.map(([l, v, cls]) => `<div class="card kpi ${cls ?? ''}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+  chart(curves);
+  const h = ov.integration_health;
+  $('health').innerHTML = `<table><tr><td>Integration</td><td><code>${esc(ov.merchant.integration)}</code></td></tr><tr><td>Payments</td><td>${esc(ov.paypal_mode)}</td></tr><tr><td>Adapter calls / errors</td><td>${h.calls} / <span class="${h.errors ? 'bad' : 'ok'}">${h.errors}</span></td></tr><tr><td>Avg latency</td><td>${h.avg_latency_ms} ms</td></tr><tr><td>Last error</td><td>${h.last_error ? esc(`${h.last_error.method}: ${h.last_error.message}`) : '—'}</td></tr></table>`;
+  $('policy').textContent = JSON.stringify(ov.policy, null, 2);
+  $('checkouts').innerHTML = `<tr><th>When</th><th>Customer</th><th>Plan</th><th>Amount</th><th>Status</th><th>PayPal</th><th></th></tr>` + (checkouts.map((c) => `<tr><td>${new Date(c.created_at).toLocaleTimeString()}</td><td>${esc(c.customer_reference)}</td><td>${esc(c.plan_id)}${c.kind === 'invoice' ? (c.merchant_initiated ? ' (auto-charge)' : ' (invoice)') : ''}${c.retention ? ' 🛟' : ''}${c.vault_requested ? ' 🔒' : ''}</td><td>${money(c.amount_cents / 100)}</td><td class="${c.status === 'completed' ? 'ok' : /fail|mismatch|declined/.test(c.status) ? 'bad' : ''}">${esc(c.status)}${c.payment_state ? ` · ${esc(c.payment_state)}` : ''}${c.webhook_confirmed_at ? ' · webhook ✓' : ''}</td><td><code>${esc(c.paypal_order_id ?? c.setup_token_id ?? '—')}</code></td><td>${c.capture_id && c.payment_state !== 'refunded' ? `<button class="btn ghost sm" data-refund="${c.id}">Refund</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No checkouts yet.</td></tr>');
+  document.querySelectorAll('[data-refund]').forEach((b) => (b.onclick = async () => { $('out').textContent = JSON.stringify(await api('POST', `/checkouts/${b.dataset.refund}/refund`), null, 2); load(); }));
+  $('audit').innerHTML = `<tr><th>When</th><th>Event</th><th>Details</th></tr>` + audit.slice(0, 80).map((a) => { const { id, created_at, type, ...rest } = a; return `<tr><td>${new Date(created_at).toLocaleTimeString()}</td><td><code>${esc(type)}</code></td><td class="small muted">${esc(JSON.stringify(rest)).slice(0, 220)}</td></tr>`; }).join('');
+  $('invoices').innerHTML = `<tr><th>Customer</th><th>Period</th><th>Usage</th><th>Amount</th><th>Collection</th><th>Status</th></tr>` + (invoices.map((i) => `<tr><td>${esc(i.customer_reference)}</td><td>${esc(i.period)}${i.kind === 'renewal' ? ' <span class="small muted">renewal</span>' : i.partial ? ' <span class="small muted">partial</span>' : ''}</td><td>${i.usage ?? '—'}</td><td>${money(i.amount)}${i.cap_applied ? ' (capped)' : ''}</td><td>${esc(i.collection ?? '—')}${i.collection === 'automatic' && i.status === 'open' ? `<div class="small muted">charge on ${new Date(i.next_retry_at ?? i.charge_scheduled_at).toLocaleDateString()}</div>` : ''}${i.attempts ? `<div class="small muted">attempts: ${i.attempts}</div>` : ''}</td><td class="${i.status === 'paid' ? 'ok' : i.status === 'past_due' ? 'bad' : ''}">${esc(i.status)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No invoices yet.</td></tr>');
+}
+
+async function validate() {
+  const v = await api('GET', '/validate');
+  $('validation').innerHTML = `<b class="${v.ok ? 'ok' : 'bad'}">${v.ok ? '✓ Adapter conforms to contract' : '✗ Validation failed'}</b> · modes: Pricing Advisor ${v.modes.pricing_advisor ? '✓' : '✗'} · Adaptive Billing ${v.modes.adaptive_billing ? '✓' : '✗'}
+    <table style="margin-top:6px">${v.checks.map((c) => `<tr><td class="${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✗'} ${esc(c.name)}</td><td class="small muted">${esc(c.ok ? (typeof c.detail === 'string' ? c.detail : c.name === 'manifest' ? `${c.detail.capabilities.length} capabilities, metric ${c.detail.usage_metric ?? '—'}` : JSON.stringify(c.detail)) : c.error)} · ${c.ms}ms</td></tr>`).join('')}</table>
+    <div class="small muted" style="margin-top:6px">Capabilities: ${v.capabilities.map((c) => `<span class="${c.supported ? 'ok' : 'muted'}">${c.supported ? '●' : '○'} ${c.capability}</span>`).join(' ')}</div>`;
+}
+
+function renderInsights(r) {
+  if (!r) return;
+  const i = r.advisor_impact_on_current_catalog;
+  $('ins-src').textContent = `${r.source === 'claude' ? '✦ proposals by Claude, metrics by simulator' : 'heuristic proposals (AI disabled or unavailable)'} · cohort: ${r.cohort.customers} customers (${r.cohort.source.replace('_', ' ')})`;
+  const fmtChanges = (cs) => cs.map((c) => c.op === 'update' ? `update ${c.plan_id}: ${Object.entries(c.set).map(([k, v]) => `${k} → ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(', ')}` : c.op === 'add' ? `add plan ${c.plan.plan_id} "${c.plan.name}" (${c.plan.billing_model}, base ${c.plan.base_price ?? 0}${c.plan.unit_price != null ? `, ${c.plan.unit_price}/${c.plan.unit}` : ''}${c.plan.included_usage ? `, ${c.plan.included_usage} incl.` : ''}${c.plan.spending_cap != null ? `, cap ${c.plan.spending_cap}` : ''})` : `remove ${c.plan_id}`).join('<br>');
+  $('insights').innerHTML = `
+    <div class="metrics" style="color:var(--fg)">
+      <div>Showing best-fit recommendations to all customers:</div>
+      <div>Revenue (12-mo) <b class="${i.revenue_impact_12m < 0 ? 'bad' : 'ok'}">${signed(i.revenue_impact_12m)}</b></div>
+      <div>Customer savings <b class="ok">${money(i.customer_savings_12m)}</b></div>
+      <div>Churned customers avoided <b class="ok">${i.churned_customers_avoided}</b></div>
+      <div>Customers on a mismatched plan <b>${i.overpaying_customers}</b> / ${r.cohort.customers}</div>
+    </div>
+    ${solverHtml(r.revenue_neutral_pricing, fmtChanges)}
+    ${r.proposals.length ? r.proposals.map((p, n) => `<div class="prop"><h4>${n + 1}. ${esc(p.title)}</h4><div>${esc(p.rationale)}</div>
+      <div class="chg">${fmtChanges(p.changes)}</div>
+      <div class="metrics"><div>Revenue vs. current catalog <b class="${p.result.vs_current_catalog.revenue_change_12m < 0 ? 'bad' : 'ok'}">${signed(p.result.vs_current_catalog.revenue_change_12m)}</b></div>
+      <div>Churned customers <b>${p.result.vs_current_catalog.churned_customers_change >= 0 ? '+' : ''}${p.result.vs_current_catalog.churned_customers_change}</b></div>
+      <div>Customer spend <b>${signed(p.result.vs_current_catalog.customer_spend_change_12m)}</b></div></div></div>`).join('') : '<div class="prop">No valid proposals for this catalog.</div>'}
+    <details style="margin-top:10px"><summary>Assumptions & caveats</summary><div class="small muted" style="margin-top:6px">${esc(r.disclaimer)}<br>${Object.entries(r.assumptions).map(([k, v]) => `${esc(k)} = ${esc(v)}`).join(' · ')}${r.ai_error ? `<br>AI error: ${esc(r.ai_error)}` : ''}</div></details>`;
+}
+
+function solverHtml(v, fmtChanges) {
+  if (!v || !v.metrics) return '';
+  const m = v.metrics;
+  const be = v.break_even_new_customers;
+  return `<div class="prop" style="border-color:${v.feasible ? '#abefc6' : '#fedf89'};background:${v.feasible ? '#f6fef9' : '#fffcf5'}">
+    <h4>⚖ Revenue-neutral pricing solver — ${v.feasible ? '<span class="ok">feasible</span>' : '<span style="color:#b54708">not reachable from the existing base</span>'}</h4>
+    <div class="small muted">Maximizes customer savings subject to: revenue ≥ today, nobody pays more${v.constraints.grandfather_existing_subscribers ? ' (existing subscribers keep their price)' : ''}, ±${v.constraints.max_price_change_pct}% price guardrail.</div>
+    ${v.changes.length ? `<div class="chg">${fmtChanges(v.changes)}</div>` : ''}
+    <div class="metrics"><div>Revenue vs. today <b class="${m.revenue_change_vs_today_12m < 0 ? 'bad' : 'ok'}">${signed(m.revenue_change_vs_today_12m)}</b> <span class="muted">(${signed(v.baseline_without_changes.revenue_change_vs_today_12m)} without changes)</span></div>
+      <div>Customer savings <b class="ok">${money(m.customer_savings_12m)}</b></div><div>Customers paying more <b>${m.customers_worse_off}</b></div>
+      ${m.assumed_new_customers_pct ? `<div>Assumed new customers <b>${m.assumed_new_customers_pct}%</b> (${signed(m.new_customer_revenue_12m)})</div>` : ''}</div>
+    ${be ? `<div style="margin-top:6px">Break-even needs <b>~${be.count} new customers (${be.pct_of_base}% of base)</b> attracted by flexible plans, at ~${money(be.avg_revenue_per_new_customer_12m)} each per year. Validate with an experiment before relying on it.</div>` : ''}
+  </div>`;
+}
+
+async function loadInsights() { renderInsights(await api('GET', '/insights/latest').catch(() => null)); }
+
+$('gen').onclick = async () => {
+  $('gen').disabled = true;
+  $('insights').innerHTML = '<span class="muted">Simulating catalog experiments…</span>';
+  try { renderInsights(await api('POST', '/insights', { goal: $('goal').value, new_customers_pct: Number($('newpct').value) || 0 })); } catch (e) { $('insights').textContent = e.message; }
+  $('gen').disabled = false;
+};
+$('validate').onclick = validate;
+$('ping').onclick = async () => { $('out').textContent = JSON.stringify(await api('POST', '/events/test'), null, 2); setTimeout(load, 500); };
+$('billing').onclick = async () => { $('out').textContent = JSON.stringify(await api('POST', '/billing/run'), null, 2); load(); };
+$('reconcile').onclick = async () => { $('out').textContent = JSON.stringify(await api('POST', '/reconcile'), null, 2); load(); };
+$('sync').onclick = async () => { try { $('out').textContent = JSON.stringify(await api('POST', '/paypal/sync-catalog'), null, 2); } catch (e) { $('out').textContent = e.message; } load(); };
+
+if (key) { try { await api('GET', '/overview'); } catch { key = ''; sessionStorage.removeItem('fp_key'); } }
+show();
+</script>
+</body></html>

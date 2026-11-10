@@ -1,0 +1,17 @@
+[
+  {
+    "id": "acme-video",
+    "name": "Acme Video",
+    "adapter": { "type": "http", "base_url": "https://api.acme-video.example.com/flexprice", "api_key_env": "ACME_ADAPTER_KEY" },
+    "widget_secret_env": "ACME_WIDGET_SECRET",
+    "admin_api_key_env": "ACME_FLEXPRICE_KEY",
+    "validation_customer_ref": "test-customer-001",
+    "paypal": { "brand_name": "Acme Video" },
+    "policy": {
+      "cap_reached_behavior": "stop_billing",
+      "plan_change": { "min_days_between_changes": 14 },
+      "usage_billing": { "auto_collect": true, "invoice_notice_days": 3 },
+      "retention": { "discount_percent": 20, "discount_months": 2, "cooldown_months": 12 }
+    }
+  }
+]

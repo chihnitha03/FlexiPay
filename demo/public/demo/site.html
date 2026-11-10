@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" href="/favicon.svg"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Merchant demo — FlexPrice AI</title>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/widget/flexprice-widget.js" defer></script>
+<style>
+.mhead{color:#fff}
+.mhead .container{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}
+.mlogo{font-weight:900;font-size:24px;letter-spacing:-.5px}
+.bar{background:#fff;border-bottom:1px solid var(--line)}
+.bar .container{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+.dev{border:1px dashed #98a2b3;border-radius:12px;padding:14px;margin:18px 0;background:#fff}
+.dev h4{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.log{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0b1b3f;color:#c7d7fe;border-radius:8px;padding:10px;max-height:150px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+main{padding:22px 0 60px}
+</style></head><body>
+<header class="mhead" id="mhead" style="background:#111"><div class="container">
+  <div class="mlogo" id="mlogo">…</div>
+  <div class="small" style="opacity:.8"><b>DEMO</b> mock merchant site (only the embedded widget is FlexPrice) · <a href="/" style="color:#fff">FlexPrice AI home</a> · <a href="/dashboard/" style="color:#fff">Dashboard</a></div>
+</div></header>
+<div class="bar"><div class="container">
+  <span class="small muted">Simulated merchant login:</span>
+  <select id="who"></select>
+  <span class="small muted" id="integ"></span>
+</div></div>
+<main><div class="container">
+  <div id="slot"></div>
+  <div class="dev" id="devtools" hidden>
+    <h4>Merchant backend simulator · demo only</h4>
+    <div class="small muted" id="devdesc"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" id="devbtns"></div>
+    <div class="log" id="log">Events will appear here.</div>
+  </div>
+  <div class="dev" id="inboxbox" hidden>
+    <h4>StreamFlix inbox · emails StreamFlix sent after verified FlexPrice webhooks · demo only</h4>
+    <div class="small muted">FlexPrice → signed webhook → StreamFlix backend (verifies with the FlexPrice SDK) → customer email.</div>
+    <div class="log" id="inbox">No emails yet.</div>
+  </div>
+  <div class="dev small muted">
+    <h4>Embed code used on this page</h4>
+    <code id="embed"></code>
+  </div>
+</div></main>
+<script type="module">
+const m = new URLSearchParams(location.search).get('m') || 'streamflix';
+const $ = (id) => document.getElementById(id);
+const log = (msg) => { const l = $('log'); l.textContent = (l.textContent === 'Events will appear here.' ? '' : l.textContent + '\n') + `[${new Date().toLocaleTimeString()}] ${msg}`; l.scrollTop = l.scrollHeight; };
+const cfg = await (await fetch(`/api/v1/widget/${m}/config`)).json();
+document.title = `${cfg.name} — plans`;
+$('mlogo').textContent = cfg.branding?.logo_text || cfg.name;
+$('mhead').style.background = m === 'streamflix' ? '#141414' : cfg.branding?.primary || '#111';
+if (m === 'streamflix') $('mlogo').style.color = cfg.branding.primary;
+$('integ').innerHTML = `Integration: <code>${cfg.integration}</code> · capabilities: ${Object.entries(cfg.capabilities).filter(([,v])=>v).map(([k])=>k).join(', ')}`;
+
+const customers = await (await fetch(`/api/v1/demo/${m}/customers`)).json();
+$('who').innerHTML = `<option value="">Anonymous visitor (not signed in)</option>` + customers.map(c => `<option value="${c.uid}">${c.name} — ${c.plan ?? 'no plan'}</option>`).join('');
+if (customers.length) $('who').value = new URLSearchParams(location.search).get('c') || customers[0].uid;
+
+async function mount() {
+  const uid = $('who').value;
+  let token = '';
+  if (uid) {
+    // In production the merchant's backend signs this after its own login. StreamFlix's mock backend does exactly that.
+    const url = m === 'streamflix' ? '/mock-merchants/streamflix/site/session' : `/api/v1/demo/${m}/session`;
+    token = (await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid }) })).json()).token;
+  }
+  $('slot').innerHTML = '';
+  const el = document.createElement('flexprice-advisor');
+  el.setAttribute('merchant', m);
+  if (token) el.setAttribute('session-token', token);
+  el.addEventListener('flexprice:plan-changed', (e) => log(`flexprice:plan-changed → ${e.detail.plan_id} (${e.detail.status})`));
+  $('slot').appendChild(el);
+  $('embed').textContent = `<script src="${location.origin}/widget/flexprice-widget.js" defer><\/script>\n<flexprice-advisor merchant="${m}"${token ? ' session-token="<signed by merchant backend>"' : ''}></flexprice-advisor>`;
+  window.fpWidget = el;
+}
+$('who').addEventListener('change', mount);
+await mount();
+
+if (m === 'streamflix') {
+  $('inboxbox').hidden = false;
+  const poll = async () => {
+    const uid = $('who').value;
+    const list = uid ? await (await fetch(`/mock-merchants/streamflix/site/notifications?uid=${encodeURIComponent(uid)}`)).json() : [];
+    $('inbox').textContent = list.length ? list.map((n) => `[${new Date(n.at).toLocaleTimeString()}] (${n.type}) ${n.text}`).join('\n') : 'No emails yet.';
+  };
+  setInterval(poll, 1500);
+  poll();
+}
+
+if (m === 'streamflix' || m === 'codecloud') {
+  $('devtools').hidden = false;
+  const key = (await (await fetch('/api/v1/demo/merchants')).json()).find(x => x.id === m).admin_api_key;
+  const unit = cfg.usage.unit;
+  $('devdesc').textContent = m === 'streamflix'
+    ? 'Simulates the StreamFlix player reporting watch time to its own backend, which forwards trusted usage events to FlexPrice. Usage is billed only for metered plans, so switch the customer to Pay-As-You-Watch or Lite first.'
+    : 'Simulates CodeCloud\'s API gateway sending metered call counts to FlexPrice.';
+  const send = async (qty) => {
+    const uid = $('who').value; if (!uid) return log('Sign in as a customer first.');
+    let out;
+    if (m === 'streamflix') out = await (await fetch('/mock-merchants/streamflix/site/watch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uid, minutes: qty * 60 }) })).json();
+    else out = await (await fetch('/api/v1/merchant/usage', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ event_id: `gw-${uid}-${Date.now()}`, customer_reference: uid, metric: 'api_calls_k', quantity: qty, unit, occurred_at: new Date().toISOString(), source: 'codecloud-gateway' }) })).json();
+    const fp = out.flexprice ?? out;
+    log(`usage +${qty} ${unit} → ${fp.accepted ? 'accepted' : fp.duplicate ? 'duplicate (ignored)' : 'rejected'}${fp.period_usage != null ? `, period total ${fp.period_usage}` : ''}${fp.cap?.reached ? ' · CAP REACHED: ' + fp.cap.message : ''}${fp.rejected_reason ? ' · ' + fp.rejected_reason : ''}`);
+    window.fpWidget.loadMeter();
+  };
+  const closeMonth = async () => {
+    const uid = $('who').value; if (!uid) return log('Sign in as a customer first.');
+    const r = await fetch(`/api/v1/merchant/customers/${uid}/close-period`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: '{}' });
+    const inv = await r.json();
+    log(r.ok ? `invoice ${inv.id} generated: $${inv.amount} for ${inv.usage} ${unit}${inv.cap_applied ? ' (cap applied)' : ''} · collection: ${inv.collection}${inv.charge_scheduled_at ? ` on ${new Date(inv.charge_scheduled_at).toLocaleDateString()} (customer notified)` : ''}` : `close period: ${inv.error}`);
+    window.fpWidget.loadMeter();
+  };
+  const amounts = m === 'streamflix' ? [1, 5, 20] : [5, 25, 100];
+  // Demo time machine: real deployments run billing from a scheduler after the notice period.
+  const runBilling = async () => {
+    const asOf = new Date(Date.now() + 30 * 864e5).toISOString();
+    const r = await (await fetch('/api/v1/merchant/billing/run', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ as_of: asOf }) })).json();
+    log(`billing run (as of +30 days): renewals ${r.renewals_invoiced}, usage months closed ${r.usage_periods_closed}, charged ${r.charged.length}${r.charged.map(c => ` [${c.kind} $${c.amount} via saved PayPal]`).join('')}, failed ${r.failed.length}, moved to manual ${r.moved_to_manual.length}`);
+    window.fpWidget.loadMeter();
+  };
+  $('devbtns').innerHTML = amounts.map(a => `<button class="btn ghost sm" data-q="${a}">${m === 'streamflix' ? '▶ Watch' : '⚡ Send'} ${a} ${unit}</button>`).join('') + `<button class="btn ghost sm" id="close">🧾 Close billing month → invoice</button><button class="btn ghost sm" id="runbill">⏩ Fast-forward 30 days → run billing</button>`;
+  $('devbtns').querySelectorAll('[data-q]').forEach(b => b.onclick = () => send(Number(b.dataset.q)));
+  $('close').onclick = closeMonth;
+  $('runbill').onclick = runBilling;
+}
+</script>
+</body></html>

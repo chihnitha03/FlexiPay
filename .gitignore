@@ -1,0 +1,7 @@
+node_modules/
+.env
+data/runtime/
+.DS_Store
+test/e2e/screenshots/
+presentation/~$*
+.DS_Store
